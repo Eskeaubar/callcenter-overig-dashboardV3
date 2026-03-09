@@ -3,79 +3,133 @@ import pandas as pd
 import plotly.express as px
 import re
 from collections import Counter
-# ========================
-# AI CATEGORISATIE VOOR OVERIG
-# ========================
 
-st.header("🤖 AI Herclassificatie van Overig Calls")
+st.set_page_config(page_title="Callcenter Overig Dashboard", layout="wide")
 
-overig_df = df[df["Overig_flag"]].copy()
+st.title("📞 Callcenter Overig Analyse Dashboard")
 
-rules = {
+uploaded_file = st.file_uploader("Upload CRM Excel", type=["xlsx"])
 
-"Inloggen":"login|inlog|wachtwoord|2fa|verific",
+if uploaded_file:
 
-"Factuur":"factuur|betaling|invoice|prijs|tarief|btw",
+    df = pd.read_excel(uploaded_file)
 
-"Account":"account|profiel|gegevens|email|gebruiker",
+    required_cols = ["Onderwerp","Beschrijving","Gemaakt op","Gemaakt door"]
 
-"Website":"website|portal|pagina|link|formulier|knop",
+    for col in required_cols:
+        if col not in df.columns:
+            st.error(f"Kolom ontbreekt: {col}")
+            st.stop()
 
-"Advertentie":"advert|advertentie|campagne|plaatsing",
+    df["Beschrijving"] = df["Beschrijving"].astype(str).str.lower()
 
-"Export":"export|document|douane|kfz|eur1"
+    df["Gemaakt op"] = pd.to_datetime(df["Gemaakt op"], dayfirst=True)
 
-}
+    df = df.dropna(subset=["Gemaakt op"])
 
-def suggest_category(text):
+    df["datum"] = df["Gemaakt op"].dt.date
 
-    for category,pattern in rules.items():
+    # Overig detectie
+    df["Overig_flag"] = df["Onderwerp"].str.lower().str.contains("overig")
 
-        if pd.notna(text) and re.search(pattern,text):
+    # Periode bepalen
+    periode_van = df["Gemaakt op"].min()
+    periode_tot = df["Gemaakt op"].max()
 
-            return category
+    # KPI
+    total_calls = len(df)
+    overig_calls = df["Overig_flag"].sum()
 
-    return "Onbekend"
+    st.header("📊 KPI Overzicht")
 
-overig_df["Voorgestelde categorie"] = overig_df["Beschrijving"].apply(suggest_category)
+    st.info(
+        f"Analyseperiode: {periode_van.strftime('%d-%m-%Y')} t/m {periode_tot.strftime('%d-%m-%Y')}"
+    )
 
-# samenvatting
+    col1,col2,col3 = st.columns(3)
 
-cat_summary = overig_df["Voorgestelde categorie"].value_counts().reset_index()
+    col1.metric("Totaal calls", total_calls)
+    col2.metric("Overig calls", overig_calls)
 
-cat_summary.columns = ["categorie","aantal"]
+    overig_pct = round(overig_calls / total_calls * 100,2)
 
-st.subheader("📊 Voorgestelde categorieën")
+    col3.metric("Overig %", overig_pct)
 
-st.dataframe(cat_summary)
+    # ====================
+    # MEDEWERKER ANALYSE
+    # ====================
 
-# grafiek
+    st.header("👨‍💼 Overig per medewerker")
 
-fig_cat = px.bar(
-    cat_summary,
-    x="categorie",
-    y="aantal",
-    title="Voorgestelde categorieën voor Overig calls"
-)
+    agent_stats = df.groupby("Gemaakt door").agg(
 
-st.plotly_chart(fig_cat,use_container_width=True)
+        totaal_calls=("Onderwerp","count"),
+        overig_calls=("Overig_flag","sum")
 
-# hercategoriseerbaar percentage
+    ).reset_index()
 
-hercat = len(overig_df[overig_df["Voorgestelde categorie"]!="Onbekend"])
+    agent_stats["overig_percentage"] = (
 
-total_overig = len(overig_df)
+        agent_stats["overig_calls"] /
+        agent_stats["totaal_calls"] * 100
 
-if total_overig > 0:
+    ).round(2)
 
-    pct = round(hercat/total_overig*100,2)
+    st.subheader("Ranking op percentage Overig")
 
-else:
+    ranking_pct = agent_stats.sort_values(
+        "overig_percentage",
+        ascending=False
+    )
 
-    pct = 0
+    st.dataframe(ranking_pct,use_container_width=True)
 
-st.info(
+    st.subheader("Ranking op aantal Overig calls")
 
-    f"{hercat} van {total_overig} Overig calls ({pct}%) kunnen mogelijk hergecategoriseerd worden"
+    ranking_count = agent_stats.sort_values(
+        "overig_calls",
+        ascending=False
+    )
 
-)
+    st.dataframe(ranking_count,use_container_width=True)
+
+    # ====================
+    # VISUALISATIES
+    # ====================
+
+    st.header("📈 Grafieken")
+
+    fig1 = px.bar(
+        ranking_pct,
+        x="Gemaakt door",
+        y="overig_percentage",
+        title="Percentage Overig per medewerker"
+    )
+
+    st.plotly_chart(fig1,use_container_width=True)
+
+    fig2 = px.bar(
+        ranking_count,
+        x="Gemaakt door",
+        y="overig_calls",
+        title="Aantal Overig calls per medewerker"
+    )
+
+    st.plotly_chart(fig2,use_container_width=True)
+
+    # ====================
+    # OVERIG INHOUD
+    # ====================
+
+    st.header("📂 Wat zit er in Overig")
+
+    overig_df = df[df["Overig_flag"]]
+
+    top_overig = overig_df["Onderwerp"].value_counts().head(10)
+
+    fig3 = px.bar(
+        top_overig,
+        title="Top onderwerpen binnen Overig"
+    )
+
+    st.plotly_chart(fig3,use_container_width=True)
