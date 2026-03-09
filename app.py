@@ -2,11 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import re
-from collections import Counter
 
 st.set_page_config(page_title="Callcenter Overig Dashboard", layout="wide")
 
-st.title("📞 Callcenter Overig Analyse Dashboard")
+st.title("📞 Callcenter Overig Intelligence Dashboard")
 
 uploaded_file = st.file_uploader("Upload CRM Excel", type=["xlsx"])
 
@@ -29,12 +28,19 @@ if uploaded_file:
 
     df["datum"] = df["Gemaakt op"].dt.date
 
-    # Overig detectie
+    # OVERIG detectie
     df["Overig_flag"] = df["Onderwerp"].str.lower().str.contains("overig")
 
-    # Periode bepalen
-    periode_van = df["Gemaakt op"].min()
-    periode_tot = df["Gemaakt op"].max()
+    # PERIODE
+    min_date = df["datum"].min()
+    max_date = df["datum"].max()
+
+    st.sidebar.header("Periode selectie")
+
+    start = st.sidebar.date_input("Startdatum", min_date)
+    end = st.sidebar.date_input("Einddatum", max_date)
+
+    df = df[(df["datum"] >= start) & (df["datum"] <= end)]
 
     # KPI
     total_calls = len(df)
@@ -42,22 +48,21 @@ if uploaded_file:
 
     st.header("📊 KPI Overzicht")
 
-    st.info(
-        f"Analyseperiode: {periode_van.strftime('%d-%m-%Y')} t/m {periode_tot.strftime('%d-%m-%Y')}"
-    )
+    st.info(f"Analyseperiode: {start} t/m {end}")
 
     col1,col2,col3 = st.columns(3)
 
     col1.metric("Totaal calls", total_calls)
+
     col2.metric("Overig calls", overig_calls)
 
-    overig_pct = round(overig_calls / total_calls * 100,2)
+    overig_pct = round(overig_calls/total_calls*100,2) if total_calls > 0 else 0
 
     col3.metric("Overig %", overig_pct)
 
-    # ====================
+    # ======================
     # MEDEWERKER ANALYSE
-    # ====================
+    # ======================
 
     st.header("👨‍💼 Overig per medewerker")
 
@@ -71,33 +76,34 @@ if uploaded_file:
     agent_stats["overig_percentage"] = (
 
         agent_stats["overig_calls"] /
+
         agent_stats["totaal_calls"] * 100
 
     ).round(2)
-
-    st.subheader("Ranking op percentage Overig")
 
     ranking_pct = agent_stats.sort_values(
         "overig_percentage",
         ascending=False
     )
 
-    st.dataframe(ranking_pct,use_container_width=True)
+    st.subheader("Ranking op % Overig")
 
-    st.subheader("Ranking op aantal Overig calls")
+    st.dataframe(ranking_pct,use_container_width=True)
 
     ranking_count = agent_stats.sort_values(
         "overig_calls",
         ascending=False
     )
 
+    st.subheader("Ranking op aantal Overig")
+
     st.dataframe(ranking_count,use_container_width=True)
 
-    # ====================
-    # VISUALISATIES
-    # ====================
+    # ======================
+    # GRAFIEKEN
+    # ======================
 
-    st.header("📈 Grafieken")
+    st.header("📈 Visualisaties")
 
     fig1 = px.bar(
         ranking_pct,
@@ -112,24 +118,84 @@ if uploaded_file:
         ranking_count,
         x="Gemaakt door",
         y="overig_calls",
-        title="Aantal Overig calls per medewerker"
+        title="Aantal Overig per medewerker"
     )
 
     st.plotly_chart(fig2,use_container_width=True)
 
-    # ====================
-    # OVERIG INHOUD
-    # ====================
+    # ======================
+    # AI CATEGORISATIE
+    # ======================
 
-    st.header("📂 Wat zit er in Overig")
+    st.header("🤖 Voorgestelde categorie voor Overig calls")
 
-    overig_df = df[df["Overig_flag"]]
+    overig_df = df[df["Overig_flag"]].copy()
 
-    top_overig = overig_df["Onderwerp"].value_counts().head(10)
+    rules = {
+
+        "Inloggen":"login|inlog|wachtwoord|2fa|auth",
+
+        "Factuur":"factuur|betaling|invoice|prijs|tarief",
+
+        "Account":"account|profiel|gegevens|email",
+
+        "Website":"website|portal|pagina|link|formulier",
+
+        "Advertentie":"advert|advertentie|campagne",
+
+        "Export":"export|document|douane"
+
+    }
+
+    def suggest_category(text):
+
+        for category,pattern in rules.items():
+
+            if re.search(pattern,text):
+
+                return category
+
+        return "Onbekend"
+
+    overig_df["Voorgestelde categorie"] = overig_df["Beschrijving"].apply(suggest_category)
+
+    summary = overig_df["Voorgestelde categorie"].value_counts().reset_index()
+
+    summary.columns = ["categorie","aantal"]
+
+    st.dataframe(summary)
 
     fig3 = px.bar(
-        top_overig,
-        title="Top onderwerpen binnen Overig"
+        summary,
+        x="categorie",
+        y="aantal",
+        title="Voorgestelde categorieën binnen Overig"
     )
 
     st.plotly_chart(fig3,use_container_width=True)
+
+    # ======================
+    # HERCLASSIFICATIE KPI
+    # ======================
+
+    hercat = len(overig_df[overig_df["Voorgestelde categorie"]!="Onbekend"])
+
+    total_overig = len(overig_df)
+
+    pct = round(hercat/total_overig*100,2) if total_overig > 0 else 0
+
+    st.header("📊 Overig hercategorisatie")
+
+    st.success(f"{hercat} van {total_overig} Overig calls ({pct}%) kunnen waarschijnlijk beter gecategoriseerd worden.")
+
+    # ======================
+    # TRAINING INSIGHTS
+    # ======================
+
+    st.header("🎯 Training targets")
+
+    training = ranking_pct.head(5)
+
+    st.write("Medewerkers met hoogste Overig percentage")
+
+    st.dataframe(training)
