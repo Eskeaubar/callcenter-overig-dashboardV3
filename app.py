@@ -2,8 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import re
+from collections import Counter
 
-st.set_page_config(page_title="Callcenter Overig Dashboard", layout="wide")
+st.set_page_config(page_title="Callcenter Overig Intelligence", layout="wide")
 
 st.title("📞 Callcenter Overig Intelligence Dashboard")
 
@@ -28,10 +29,10 @@ if uploaded_file:
 
     df["datum"] = df["Gemaakt op"].dt.date
 
-    # OVERIG detectie
+    # Overig detectie
     df["Overig_flag"] = df["Onderwerp"].str.lower().str.contains("overig")
 
-    # PERIODE
+    # PERIODE FILTER
     min_date = df["datum"].min()
     max_date = df["datum"].max()
 
@@ -53,7 +54,6 @@ if uploaded_file:
     col1,col2,col3 = st.columns(3)
 
     col1.metric("Totaal calls", total_calls)
-
     col2.metric("Overig calls", overig_calls)
 
     overig_pct = round(overig_calls/total_calls*100,2) if total_calls > 0 else 0
@@ -100,7 +100,7 @@ if uploaded_file:
     st.dataframe(ranking_count,use_container_width=True)
 
     # ======================
-    # GRAFIEKEN
+    # VISUALISATIES
     # ======================
 
     st.header("📈 Visualisaties")
@@ -134,15 +134,10 @@ if uploaded_file:
     rules = {
 
         "Inloggen":"login|inlog|wachtwoord|2fa|auth",
-
         "Factuur":"factuur|betaling|invoice|prijs|tarief",
-
         "Account":"account|profiel|gegevens|email",
-
         "Website":"website|portal|pagina|link|formulier",
-
         "Advertentie":"advert|advertentie|campagne",
-
         "Export":"export|document|douane"
 
     }
@@ -175,27 +170,45 @@ if uploaded_file:
     st.plotly_chart(fig3,use_container_width=True)
 
     # ======================
-    # HERCLASSIFICATIE KPI
+    # CALL DRIVER DISCOVERY
     # ======================
 
-    hercat = len(overig_df[overig_df["Voorgestelde categorie"]!="Onbekend"])
+    st.header("🔎 Call Driver Discovery")
 
-    total_overig = len(overig_df)
+    text = " ".join(overig_df["Beschrijving"].dropna())
 
-    pct = round(hercat/total_overig*100,2) if total_overig > 0 else 0
+    words = re.findall(r"\b[a-z]{4,}\b", text)
 
-    st.header("📊 Overig hercategorisatie")
+    stopwords = ["klant","probleem","vraag","help","graag"]
 
-    st.success(f"{hercat} van {total_overig} Overig calls ({pct}%) kunnen waarschijnlijk beter gecategoriseerd worden.")
+    words = [w for w in words if w not in stopwords]
+
+    word_freq = Counter(words).most_common(15)
+
+    word_df = pd.DataFrame(word_freq,columns=["woord","frequentie"])
+
+    fig_words = px.bar(
+        word_df,
+        x="woord",
+        y="frequentie",
+        title="Meest voorkomende woorden in Overig calls"
+    )
+
+    st.plotly_chart(fig_words,use_container_width=True)
 
     # ======================
-    # TRAINING INSIGHTS
+    # DRIVER TRENDS
     # ======================
 
-    st.header("🎯 Training targets")
+    st.header("📈 Driver Trends")
 
-    training = ranking_pct.head(5)
+    driver_trend = overig_df.groupby("datum").size().reset_index(name="overig_calls")
 
-    st.write("Medewerkers met hoogste Overig percentage")
+    fig_trend = px.line(
+        driver_trend,
+        x="datum",
+        y="overig_calls",
+        title="Trend van Overig calls per dag"
+    )
 
-    st.dataframe(training)
+    st.plotly_chart(fig_trend,use_container_width=True)
