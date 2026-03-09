@@ -24,6 +24,7 @@ if uploaded_file:
 
     df["Beschrijving"] = df["Beschrijving"].astype(str).str.lower()
     df["Gemaakt op"] = pd.to_datetime(df["Gemaakt op"], dayfirst=True)
+
     df = df.dropna(subset=["Gemaakt op"])
 
     df["datum"] = df["Gemaakt op"].dt.date
@@ -85,13 +86,12 @@ if uploaded_file:
 
     df = df[(df["datum"] >= start) & (df["datum"] <= end)]
 
+    periode_dagen = (end - start).days
+
     # medewerker filter
     medewerkers = ["Alle medewerkers"] + sorted(df["Gemaakt door"].unique())
 
-    medewerker_filter = st.sidebar.selectbox(
-        "Medewerker filter",
-        medewerkers
-    )
+    medewerker_filter = st.sidebar.selectbox("Medewerker filter", medewerkers)
 
     if medewerker_filter != "Alle medewerkers":
         df = df[df["Gemaakt door"] == medewerker_filter]
@@ -151,67 +151,82 @@ if uploaded_file:
     st.dataframe(ranking_count,use_container_width=True)
 
     # =========================
-    # PODIUM BESTE CATEGORISATIE
+    # PODIUM LOGICA
     # =========================
 
     st.header("🏆 Podium – Beste categorisatie")
 
-    podium_data = agent_stats[agent_stats["totaal_calls"] >= 20]
+    if periode_dagen < 7:
 
-    best_pct = podium_data.sort_values("overig_percentage").head(3)
-    best_count = podium_data.sort_values("overig_calls").head(3)
+        st.warning("Te weinig calls voor een eerlijk podium. Selecteer minimaal een week.")
 
-    col1, col2, col3 = st.columns(3)
+    else:
 
-    podium = [col1, col2, col3]
-
-    for i in range(3):
-
-        if i < len(best_pct):
-
-            medewerker = best_pct.iloc[i]
-
-            podium[i].markdown(
-                f"""
-                **Plek {i+1}**
-
-                {medewerker['Gemaakt door']}
-
-                Overig %: {medewerker['overig_percentage']}%
-
-                Overig calls: {int(medewerker['overig_calls'])}
-                """
-            )
-
+        if periode_dagen >= 30:
+            min_calls = 100
         else:
-            podium[i].markdown(f"**Plek {i+1}**\n\n—")
+            min_calls = 50
 
-    st.header("🏆 Podium – Minste Overig calls")
+        podium_data = agent_stats[agent_stats["totaal_calls"] >= min_calls]
 
-    col1, col2, col3 = st.columns(3)
+        best_pct = podium_data.sort_values("overig_percentage").head(3)
+        best_count = podium_data.sort_values("overig_calls").head(3)
 
-    podium = [col1, col2, col3]
+        medals = ["🥇","🥈","🥉"]
 
-    for i in range(3):
+        cols = st.columns(3)
 
-        if i < len(best_count):
+        for i in range(3):
 
-            medewerker = best_count.iloc[i]
+            if i < len(best_pct):
 
-            podium[i].markdown(
-                f"""
-                **Plek {i+1}**
+                row = best_pct.iloc[i]
 
-                {medewerker['Gemaakt door']}
+                cols[i].markdown(
+                    f"""
+                    ## {medals[i]}
 
-                Overig %: {medewerker['overig_percentage']}%
+                    **{row['Gemaakt door']}**
 
-                Overig calls: {int(medewerker['overig_calls'])}
-                """
-            )
+                    Overig %: **{row['overig_percentage']}%**
 
-        else:
-            podium[i].markdown(f"**Plek {i+1}**\n\n—")
+                    Overig calls: **{int(row['overig_calls'])}**
+
+                    Totaal calls: {int(row['totaal_calls'])}
+                    """
+                )
+
+            else:
+
+                cols[i].markdown(f"## {medals[i]}\n\n—")
+
+        st.header("🏆 Podium – Minste Overig calls")
+
+        cols = st.columns(3)
+
+        for i in range(3):
+
+            if i < len(best_count):
+
+                row = best_count.iloc[i]
+
+                cols[i].markdown(
+                    f"""
+                    ## {medals[i]}
+
+                    **{row['Gemaakt door']}**
+
+                    Overig %: **{row['overig_percentage']}%**
+
+                    Overig calls: **{int(row['overig_calls'])}**
+
+                    Totaal calls: {int(row['totaal_calls'])}
+                    """
+                )
+
+            else:
+
+                cols[i].markdown(f"## {medals[i]}\n\n—")
 
     # =========================
     # DRIVER TRENDS
