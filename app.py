@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import re
-from collections import Counter
 from datetime import timedelta, date
 
 st.set_page_config(page_title="Callcenter Overig Intelligence", layout="wide")
@@ -23,6 +21,7 @@ if uploaded_file:
             st.stop()
 
     df["Beschrijving"] = df["Beschrijving"].astype(str).str.lower()
+
     df["Gemaakt op"] = pd.to_datetime(df["Gemaakt op"], dayfirst=True)
 
     df = df.dropna(subset=["Gemaakt op"])
@@ -56,14 +55,17 @@ if uploaded_file:
     min_date = dataset_start
 
     if filter_optie == "Gisteren":
+
         start = max_date - timedelta(days=1)
         end = max_date
 
     elif filter_optie == "Afgelopen week":
+
         start = max_date - timedelta(days=7)
         end = max_date
 
     elif filter_optie == "Afgelopen maand":
+
         start = max_date - timedelta(days=30)
         end = max_date
 
@@ -81,6 +83,7 @@ if uploaded_file:
         end = st.sidebar.date_input("Einddatum", max_date)
 
     else:
+
         start = min_date
         end = max_date
 
@@ -88,7 +91,10 @@ if uploaded_file:
 
     periode_dagen = (end - start).days
 
-    # medewerker filter
+    # =========================
+    # MEDEWERKER FILTER
+    # =========================
+
     medewerkers = ["Alle medewerkers"] + sorted(df["Gemaakt door"].unique())
 
     medewerker_filter = st.sidebar.selectbox("Medewerker filter", medewerkers)
@@ -97,7 +103,7 @@ if uploaded_file:
         df = df[df["Gemaakt door"] == medewerker_filter]
 
     # =========================
-    # KPI
+    # KPI OVERZICHT
     # =========================
 
     total_calls = len(df)
@@ -113,12 +119,12 @@ if uploaded_file:
         f"Gekozen periode filter: {start.strftime('%d-%m-%Y')} t/m {end.strftime('%d-%m-%Y')}"
     )
 
-    col1,col2,col3 = st.columns(3)
+    col1, col2, col3 = st.columns(3)
 
     col1.metric("Totaal calls", total_calls)
     col2.metric("Overig calls", overig_calls)
 
-    overig_pct = round(overig_calls/total_calls*100,2) if total_calls > 0 else 0
+    overig_pct = round(overig_calls / total_calls * 100, 2) if total_calls > 0 else 0
 
     col3.metric("Overig %", overig_pct)
 
@@ -129,8 +135,8 @@ if uploaded_file:
     st.header("👨‍💼 Overig per medewerker")
 
     agent_stats = df.groupby("Gemaakt door").agg(
-        totaal_calls=("Onderwerp","count"),
-        overig_calls=("Overig_flag","sum")
+        totaal_calls=("Onderwerp", "count"),
+        overig_calls=("Overig_flag", "sum")
     ).reset_index()
 
     agent_stats["overig_percentage"] = (
@@ -138,27 +144,29 @@ if uploaded_file:
         agent_stats["totaal_calls"] * 100
     ).round(2)
 
-    ranking_pct = agent_stats.sort_values("overig_percentage",ascending=False)
+    ranking_pct = agent_stats.sort_values("overig_percentage", ascending=False)
 
     st.subheader("Ranking op % Overig")
 
-    st.dataframe(ranking_pct,use_container_width=True)
+    st.dataframe(ranking_pct, use_container_width=True)
 
-    ranking_count = agent_stats.sort_values("overig_calls",ascending=False)
+    ranking_count = agent_stats.sort_values("overig_calls", ascending=False)
 
     st.subheader("Ranking op aantal Overig")
 
-    st.dataframe(ranking_count,use_container_width=True)
+    st.dataframe(ranking_count, use_container_width=True)
 
     # =========================
-    # PODIUM LOGICA
+    # PODIUM
     # =========================
 
     st.header("🏆 Podium – Beste categorisatie")
 
     if periode_dagen < 7:
 
-        st.warning("Te weinig calls voor een eerlijk podium. Selecteer minimaal een week.")
+        st.warning(
+            "Te weinig calls voor een eerlijk podium. Selecteer minimaal een week."
+        )
 
     else:
 
@@ -172,7 +180,7 @@ if uploaded_file:
         best_pct = podium_data.sort_values("overig_percentage").head(3)
         best_count = podium_data.sort_values("overig_calls").head(3)
 
-        medals = ["🥇","🥈","🥉"]
+        medals = ["🥇", "🥈", "🥉"]
 
         cols = st.columns(3)
 
@@ -243,7 +251,7 @@ if uploaded_file:
         title="Trend totaal aantal calls per dag"
     )
 
-    st.plotly_chart(fig_calls,use_container_width=True)
+    st.plotly_chart(fig_calls, use_container_width=True)
 
     overig_df = df[df["Overig_flag"]]
 
@@ -256,15 +264,37 @@ if uploaded_file:
         title="Trend Overig calls per dag"
     )
 
-    st.plotly_chart(fig_overig,use_container_width=True)
+    st.plotly_chart(fig_overig, use_container_width=True)
 
-    combined = calls_per_day.merge(overig_trend,on="datum",how="left").fillna(0)
+    combined = calls_per_day.merge(overig_trend, on="datum", how="left").fillna(0)
 
     fig_combined = px.line(
         combined,
         x="datum",
-        y=["calls","overig_calls"],
+        y=["calls", "overig_calls"],
         title="Totaal calls vs Overig calls"
     )
 
-    st.plotly_chart(fig_combined,use_container_width=True)
+    st.plotly_chart(fig_combined, use_container_width=True)
+
+    # =========================
+    # EINDE DASHBOARD
+    # =========================
+
+    st.markdown("---")
+
+    st.markdown(
+        """
+        <div style="text-align:center">
+
+        # 🎆 Einde dashboard bereikt 🎆
+
+        Je hebt het einde van het rapport bereikt.  
+        Scroll omhoog om analyses opnieuw te bekijken.
+
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.balloons()
