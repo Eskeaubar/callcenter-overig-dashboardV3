@@ -11,9 +11,9 @@ st.set_page_config(
 
 st.title("📞 KCC Categorie Overige Dashboard")
 
-# -----------------------------------
+# ------------------------------------------------
 # MUZIEK
-# -----------------------------------
+# ------------------------------------------------
 
 play_music = st.sidebar.checkbox("🎵 Achtergrondmuziek", value=False)
 
@@ -22,9 +22,9 @@ if play_music:
     audio_bytes = audio_file.read()
     st.audio(audio_bytes, format="audio/mp3")
 
-# -----------------------------------
+# ------------------------------------------------
 # FILE UPLOAD
-# -----------------------------------
+# ------------------------------------------------
 
 uploaded_file = st.file_uploader("Upload CRM Excel", type=["xlsx"])
 
@@ -39,6 +39,10 @@ if uploaded_file:
             st.error(f"Kolom ontbreekt: {col}")
             st.stop()
 
+    # ------------------------------------------------
+    # DATA PREP
+    # ------------------------------------------------
+
     df["Beschrijving"] = df["Beschrijving"].astype(str).str.lower()
 
     df["Gemaakt op"] = pd.to_datetime(df["Gemaakt op"], dayfirst=True)
@@ -47,10 +51,9 @@ if uploaded_file:
 
     df["datum"] = df["Gemaakt op"].dt.date
 
-    # alleen werkdagen
+    # Alleen werkdagen
 
     df["weekday"] = pd.to_datetime(df["datum"]).dt.weekday
-
     df = df[df["weekday"] < 5]
 
     dataset_start = df["datum"].min()
@@ -58,9 +61,9 @@ if uploaded_file:
 
     df["Overig_flag"] = df["Onderwerp"].str.lower().str.contains("overig")
 
-    # -----------------------------------
+    # ------------------------------------------------
     # FILTERS
-    # -----------------------------------
+    # ------------------------------------------------
 
     st.sidebar.header("Filters")
 
@@ -105,7 +108,6 @@ if uploaded_file:
         end = st.sidebar.date_input("Einddatum", max_date)
 
     else:
-
         start = min_date
         end = max_date
 
@@ -120,36 +122,117 @@ if uploaded_file:
     if medewerker_filter != "Alle medewerkers":
         df = df[df["Gemaakt door"] == medewerker_filter]
 
-    # -----------------------------------
+    # ------------------------------------------------
     # KPI
-    # -----------------------------------
+    # ------------------------------------------------
 
     total_calls = len(df)
     overig_calls = df["Overig_flag"].sum()
 
     st.header("📊 KPI Overzicht")
 
-    st.info(
-        f"Analyseperiode dataset: {dataset_start.strftime('%d-%m-%Y')} t/m {dataset_end.strftime('%d-%m-%Y')}"
-    )
-
-    st.info(
-        f"Gekozen periode filter: {start.strftime('%d-%m-%Y')} t/m {end.strftime('%d-%m-%Y')}"
-    )
-
     col1,col2,col3 = st.columns(3)
 
     col1.metric("Totaal calls", total_calls)
-
     col2.metric("Overig calls", overig_calls)
 
     overig_pct = round(overig_calls/total_calls*100,2) if total_calls>0 else 0
 
     col3.metric("Overig %", overig_pct)
 
-    # -----------------------------------
+    # ------------------------------------------------
+    # MEDEWERKER ANALYSE
+    # ------------------------------------------------
+
+    st.header("👨‍💼 Overig per medewerker")
+
+    agent_stats = df.groupby("Gemaakt door").agg(
+        totaal_calls=("Onderwerp","count"),
+        overig_calls=("Overig_flag","sum")
+    ).reset_index()
+
+    agent_stats["overig_percentage"] = (
+        agent_stats["overig_calls"] /
+        agent_stats["totaal_calls"] * 100
+    ).round(2)
+
+    st.subheader("Ranking op % Overig")
+
+    st.dataframe(
+        agent_stats.sort_values("overig_percentage",ascending=False),
+        use_container_width=True
+    )
+
+    st.subheader("Ranking op aantal Overig")
+
+    st.dataframe(
+        agent_stats.sort_values("overig_calls",ascending=False),
+        use_container_width=True
+    )
+
+    # ------------------------------------------------
+    # PODIUM
+    # ------------------------------------------------
+
+    st.header("🏆 Podium – Beste categorisatie")
+
+    periode_dagen = (end - start).days
+
+    if medewerker_filter != "Alle medewerkers":
+
+        st.info("Podium verborgen omdat een medewerkerfilter actief is.")
+
+    elif periode_dagen < 7:
+
+        st.warning("Te weinig calls voor een eerlijk podium.")
+
+    else:
+
+        podium_data = agent_stats.sort_values("overig_percentage").head(3)
+
+        col1,col2,col3 = st.columns(3)
+
+        if len(podium_data) > 1:
+            col1.success(
+                f"🥈 {podium_data.iloc[1]['Gemaakt door']} \n\n"
+                f"Overig %: {podium_data.iloc[1]['overig_percentage']}%"
+            )
+
+        if len(podium_data) > 0:
+            col2.success(
+                f"🥇 {podium_data.iloc[0]['Gemaakt door']} \n\n"
+                f"Overig %: {podium_data.iloc[0]['overig_percentage']}%"
+            )
+
+        if len(podium_data) > 2:
+            col3.success(
+                f"🥉 {podium_data.iloc[2]['Gemaakt door']} \n\n"
+                f"Overig %: {podium_data.iloc[2]['overig_percentage']}%"
+            )
+
+    # ------------------------------------------------
+    # CATEGORIE PER MEDEWERKER
+    # ------------------------------------------------
+
+    st.header("📊 Categoriegebruik per medewerker")
+
+    cat_agent = df.groupby(["Gemaakt door","Onderwerp"]).size().reset_index(name="Aantal")
+
+    st.dataframe(cat_agent,use_container_width=True)
+
+    fig_agent_cat = px.bar(
+        cat_agent,
+        x="Gemaakt door",
+        y="Aantal",
+        color="Onderwerp",
+        title="Onderwerpen per medewerker"
+    )
+
+    st.plotly_chart(fig_agent_cat,use_container_width=True)
+
+    # ------------------------------------------------
     # OVERIG ANALYSE
-    # -----------------------------------
+    # ------------------------------------------------
 
     st.header("🤖 Voorgestelde categorie voor Overig")
 
@@ -169,7 +252,6 @@ if uploaded_file:
         for cat,pattern in rules.items():
 
             if re.search(pattern,text):
-
                 return cat
 
         return "Onbekend"
@@ -182,18 +264,13 @@ if uploaded_file:
 
     st.dataframe(summary,use_container_width=True)
 
-    fig_cat = px.bar(
-        summary,
-        x="Categorie",
-        y="Aantal",
-        title="Voorgestelde categorieën binnen Overig"
-    )
+    fig_cat = px.bar(summary,x="Categorie",y="Aantal",title="Voorgestelde categorieën")
 
     st.plotly_chart(fig_cat,use_container_width=True)
 
-    # -----------------------------------
-    # OVERIG REDUCTION SIMULATOR
-    # -----------------------------------
+    # ------------------------------------------------
+    # REDUCTION SIMULATOR
+    # ------------------------------------------------
 
     st.header("🧮 Overig Reduction Simulator")
 
@@ -201,7 +278,7 @@ if uploaded_file:
 
     total_overig = len(overig_df)
 
-    if total_overig > 0 and total_calls > 0:
+    if total_overig > 0:
 
         new_overig = total_overig - hercat
 
@@ -222,9 +299,9 @@ Dat is een verlaging van **{call_reduction} calls** en **{pct_reduction} procent
 """
         )
 
-    # -----------------------------------
-    # DRIVER TRENDS
-    # -----------------------------------
+    # ------------------------------------------------
+    # TRENDS
+    # ------------------------------------------------
 
     st.header("📈 Driver Trends")
 
@@ -234,22 +311,18 @@ Dat is een verlaging van **{call_reduction} calls** en **{pct_reduction} procent
         calls_per_day,
         x="datum",
         y="calls",
-        title="Trend totaal aantal calls per dag"
+        title="Trend totaal aantal calls"
     )
 
     st.plotly_chart(fig_calls,use_container_width=True)
 
     overig_trend = overig_df.groupby("datum").size().reset_index(name="overig_calls")
 
-    overig_trend["overig_na_hercategorisatie"] = overig_trend["overig_calls"] * (
-        (total_overig - hercat) / total_overig if total_overig > 0 else 1
-    )
-
     fig_overig = px.line(
         overig_trend,
         x="datum",
-        y=["overig_calls","overig_na_hercategorisatie"],
-        title="Trend Overig calls (huidig vs na hercategorisatie)"
+        y="overig_calls",
+        title="Trend Overig calls"
     )
 
     st.plotly_chart(fig_overig,use_container_width=True)
