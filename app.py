@@ -3,7 +3,8 @@ import pandas as pd
 import plotly.express as px
 import re
 from collections import Counter
-from datetime import timedelta
+from datetime import timedelta, date
+import calendar
 
 st.set_page_config(page_title="Callcenter Overig Intelligence", layout="wide")
 
@@ -30,7 +31,6 @@ if uploaded_file:
 
     df["datum"] = df["Gemaakt op"].dt.date
 
-    # dataset periode
     dataset_start = df["datum"].min()
     dataset_end = df["datum"].max()
 
@@ -39,9 +39,6 @@ if uploaded_file:
     # =========================
     # PERIODE FILTER
     # =========================
-
-    min_date = dataset_start
-    max_date = dataset_end
 
     st.sidebar.header("Periode filter")
 
@@ -52,9 +49,13 @@ if uploaded_file:
             "Gisteren",
             "Afgelopen week",
             "Afgelopen maand",
+            "Afgelopen kalender maand",
             "Aangepaste periode"
         ]
     )
+
+    max_date = dataset_end
+    min_date = dataset_start
 
     if filter_optie == "Gisteren":
 
@@ -70,6 +71,14 @@ if uploaded_file:
 
         start = max_date - timedelta(days=30)
         end = max_date
+
+    elif filter_optie == "Afgelopen kalender maand":
+
+        first_day_current_month = date(max_date.year, max_date.month, 1)
+        last_day_previous_month = first_day_current_month - timedelta(days=1)
+
+        start = date(last_day_previous_month.year, last_day_previous_month.month, 1)
+        end = last_day_previous_month
 
     elif filter_optie == "Aangepaste periode":
 
@@ -228,84 +237,3 @@ if uploaded_file:
             f"{total_overig} ({original_pct}%) naar {new_overig} ({new_pct}%). "
             f"Dat is een verlaging van {call_reduction} calls en {pct_reduction} procentpunt."
         )
-
-    # =========================
-    # CALL DRIVER DISCOVERY
-    # =========================
-
-    st.header("🔎 Call Driver Discovery")
-
-    text = " ".join(overig_df["Beschrijving"].dropna())
-
-    words = re.findall(r"\b[a-z]{4,}\b", text)
-
-    stopwords = ["klant","probleem","vraag","help","graag"]
-
-    words = [w for w in words if w not in stopwords]
-
-    subject_text = " ".join(overig_df["Onderwerp"].dropna()).lower()
-
-    words = [w for w in words if w in subject_text]
-
-    word_freq = Counter(words).most_common(15)
-
-    word_df = pd.DataFrame(word_freq,columns=["woord","frequentie"])
-
-    fig_words = px.bar(word_df,x="woord",y="frequentie",title="Driver woorden")
-
-    st.plotly_chart(fig_words,use_container_width=True)
-
-    # =========================
-    # DRIVER TRENDS
-    # =========================
-
-    st.header("📈 Driver Trends")
-
-    calls_per_day = df.groupby("datum").size().reset_index(name="calls")
-
-    fig_calls = px.line(
-        calls_per_day,
-        x="datum",
-        y="calls",
-        title="Trend totaal aantal calls per dag"
-    )
-
-    st.plotly_chart(fig_calls,use_container_width=True)
-
-    overig_trend = overig_df.groupby("datum").size().reset_index(name="overig_calls")
-
-    fig_overig = px.line(
-        overig_trend,
-        x="datum",
-        y="overig_calls",
-        title="Trend Overig calls per dag"
-    )
-
-    st.plotly_chart(fig_overig,use_container_width=True)
-
-    combined = calls_per_day.merge(overig_trend,on="datum",how="left").fillna(0)
-
-    fig_combined = px.line(
-        combined,
-        x="datum",
-        y=["calls","overig_calls"],
-        title="Totaal calls vs Overig calls"
-    )
-
-    st.plotly_chart(fig_combined,use_container_width=True)
-
-    # =========================
-    # TOP OVERIG PER MEDEWERKER
-    # =========================
-
-    st.header("👥 Top Overig onderwerpen per medewerker")
-
-    top_agent_topics = (
-        overig_df
-        .groupby(["Gemaakt door","Onderwerp"])
-        .size()
-        .reset_index(name="aantal")
-        .sort_values(["Gemaakt door","aantal"],ascending=[True,False])
-    )
-
-    st.dataframe(top_agent_topics,use_container_width=True)
