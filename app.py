@@ -8,9 +8,73 @@ import re
 # PAGE CONFIG
 # ------------------------------------------------
 
-st.set_page_config(page_title="Callcenter Overig Intelligence", layout="wide")
+st.set_page_config(
+    page_title="KCC Categorie Overige",
+    layout="wide"
+)
 
-st.title("📞 Callcenter Overig Intelligence Dashboard")
+# ------------------------------------------------
+# VWE STYLE
+# ------------------------------------------------
+
+st.markdown("""
+<style>
+
+.main-header {
+background:#2fb463;
+padding:20px;
+border-radius:10px;
+display:flex;
+align-items:center;
+gap:20px;
+}
+
+.main-title {
+font-size:32px;
+font-weight:700;
+color:white;
+}
+
+.sub-title {
+font-size:16px;
+color:white;
+}
+
+.podium-card{
+background:#d9f2e3;
+border-radius:12px;
+padding:25px;
+text-align:center;
+height:260px;
+display:flex;
+flex-direction:column;
+justify-content:center;
+box-shadow:0 6px 18px rgba(0,0,0,0.2);
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ------------------------------------------------
+# HEADER MET LOGO
+# ------------------------------------------------
+
+col1, col2 = st.columns([1,6])
+
+with col1:
+    st.image("logo_vwe.png", width=120)
+
+with col2:
+    st.markdown("""
+    <div class="main-header">
+        <div>
+            <div class="main-title">KCC Categorie Overige</div>
+            <div class="sub-title">Analyse dashboard</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
 
 # ------------------------------------------------
 # FILE UPLOAD
@@ -34,9 +98,7 @@ if uploaded_file:
     # ------------------------------------------------
 
     df["Beschrijving"] = df["Beschrijving"].astype(str).str.lower()
-
     df["Gemaakt op"] = pd.to_datetime(df["Gemaakt op"], dayfirst=True)
-
     df = df.dropna(subset=["Gemaakt op"])
 
     df["datum"] = df["Gemaakt op"].dt.date
@@ -51,7 +113,7 @@ if uploaded_file:
     df["Overig_flag"] = df["Onderwerp"].str.lower().str.contains("overig")
 
     # ------------------------------------------------
-    # SIDEBAR FILTERS
+    # FILTERS
     # ------------------------------------------------
 
     st.sidebar.header("Filters")
@@ -72,17 +134,14 @@ if uploaded_file:
     min_date = dataset_start
 
     if filter_optie == "Gisteren":
-
         start = max_date - timedelta(days=1)
         end = max_date
 
     elif filter_optie == "Afgelopen week":
-
         start = max_date - timedelta(days=7)
         end = max_date
 
     elif filter_optie == "Afgelopen maand":
-
         start = max_date - timedelta(days=30)
         end = max_date
 
@@ -105,20 +164,6 @@ if uploaded_file:
         end = max_date
 
     df = df[(df["datum"] >= start) & (df["datum"] <= end)]
-
-    # ------------------------------------------------
-    # MEDEWERKER FILTER
-    # ------------------------------------------------
-
-    medewerkers = ["Alle medewerkers"] + sorted(df["Gemaakt door"].unique())
-
-    medewerker_filter = st.sidebar.selectbox(
-        "Medewerker",
-        medewerkers
-    )
-
-    if medewerker_filter != "Alle medewerkers":
-        df = df[df["Gemaakt door"] == medewerker_filter]
 
     # ------------------------------------------------
     # KPI
@@ -162,19 +207,7 @@ if uploaded_file:
         agent_stats["totaal_calls"] * 100
     ).round(2)
 
-    st.subheader("Ranking op % Overig")
-
-    st.dataframe(
-        agent_stats.sort_values("overig_percentage",ascending=False),
-        use_container_width=True
-    )
-
-    st.subheader("Ranking op aantal Overig")
-
-    st.dataframe(
-        agent_stats.sort_values("overig_calls",ascending=False),
-        use_container_width=True
-    )
+    st.dataframe(agent_stats.sort_values("overig_percentage",ascending=False))
 
     # ------------------------------------------------
     # PODIUM
@@ -182,162 +215,46 @@ if uploaded_file:
 
     st.header("🏆 Podium – Beste categorisatie")
 
-    periode_dagen = (end - start).days
+    best_pct = agent_stats.sort_values("overig_percentage").head(3)
 
-    if medewerker_filter != "Alle medewerkers":
+    col1,col2,col3 = st.columns(3)
 
-        st.info("Podium verborgen omdat een medewerkerfilter actief is.")
+    if len(best_pct) > 1:
+        col1.markdown(f"""
+        <div class="podium-card">
+        <h1>🥈</h1>
+        <b>{best_pct.iloc[1]['Gemaakt door']}</b><br>
+        Overig %: {best_pct.iloc[1]['overig_percentage']}%<br>
+        Calls: {best_pct.iloc[1]['overig_calls']}
+        </div>
+        """, unsafe_allow_html=True)
 
-    elif periode_dagen < 7:
+    if len(best_pct) > 0:
+        col2.markdown(f"""
+        <div class="podium-card">
+        <h1>🥇</h1>
+        <b>{best_pct.iloc[0]['Gemaakt door']}</b><br>
+        Overig %: {best_pct.iloc[0]['overig_percentage']}%<br>
+        Calls: {best_pct.iloc[0]['overig_calls']}
+        </div>
+        """, unsafe_allow_html=True)
 
-        st.warning("Te weinig calls voor een eerlijk podium.")
-
-    else:
-
-        if periode_dagen >= 30:
-            min_calls = 100
-        else:
-            min_calls = 50
-
-        podium_data = agent_stats[agent_stats["totaal_calls"] >= min_calls]
-
-        best_pct = podium_data.sort_values("overig_percentage").head(3)
-
-        def podium(row, medal, border_color, height):
-
-            return f"""
-            <div style="
-            background:#f8f9fb;
-            border-radius:12px;
-            border:4px solid {border_color};
-            padding:20px;
-            text-align:center;
-            height:{height}px;
-            box-shadow:0 10px 25px rgba(0,0,0,0.2);
-            ">
-
-            <div style="font-size:45px">{medal}</div>
-
-            <div style="font-size:22px;font-weight:700;color:#111">
-            {row['Gemaakt door']}
-            </div>
-
-            <div style="margin-top:10px;font-size:16px;color:#333">
-            Overig %: <b>{row['overig_percentage']}%</b>
-            </div>
-
-            <div style="font-size:16px;color:#333">
-            Overig calls: {int(row['overig_calls'])}
-            </div>
-
-            <div style="font-size:16px;color:#333">
-            Totaal calls: {int(row['totaal_calls'])}
-            </div>
-
-            </div>
-            """
-
-        col1,col2,col3 = st.columns(3)
-
-        if len(best_pct) > 1:
-            col1.markdown(
-                podium(best_pct.iloc[1],"🥈","#C0C0C0",200),
-                unsafe_allow_html=True
-            )
-
-        if len(best_pct) > 0:
-            col2.markdown(
-                podium(best_pct.iloc[0],"🥇","#FFD700",260),
-                unsafe_allow_html=True
-            )
-
-        if len(best_pct) > 2:
-            col3.markdown(
-                podium(best_pct.iloc[2],"🥉","#CD7F32",170),
-                unsafe_allow_html=True
-            )
-
-    # ------------------------------------------------
-    # VOORGESTELDE CATEGORIEËN
-    # ------------------------------------------------
-
-    st.header("🤖 Voorgestelde categorie voor Overig")
-
-    overig_df = df[df["Overig_flag"]].copy()
-
-    rules = {
-
-        "Inloggen":"login|inlog|wachtwoord|2fa",
-        "Factuur":"factuur|betaling|invoice|tarief",
-        "Account":"account|profiel|gegevens",
-        "Website":"website|portal|pagina",
-        "Advertentie":"advert|campagne",
-        "Export":"export|douane|document"
-    }
-
-    def suggest_category(text):
-
-        for cat,pattern in rules.items():
-
-            if re.search(pattern,text):
-
-                return cat
-
-        return "Onbekend"
-
-    overig_df["Voorgestelde categorie"] = overig_df["Beschrijving"].apply(suggest_category)
-
-    summary = overig_df["Voorgestelde categorie"].value_counts().reset_index()
-
-    summary.columns=["Categorie","Aantal"]
-
-    st.dataframe(summary,use_container_width=True)
-
-    fig_cat = px.bar(summary,x="Categorie",y="Aantal")
-
-    st.plotly_chart(fig_cat,use_container_width=True)
-
-    # ------------------------------------------------
-    # TRENDS
-    # ------------------------------------------------
-
-    st.header("📈 Driver Trends")
-
-    calls_per_day = df.groupby("datum").size().reset_index(name="calls")
-
-    st.plotly_chart(
-        px.line(calls_per_day,x="datum",y="calls"),
-        use_container_width=True
-    )
-
-    overig_trend = overig_df.groupby("datum").size().reset_index(name="overig_calls")
-
-    st.plotly_chart(
-        px.line(overig_trend,x="datum",y="overig_calls"),
-        use_container_width=True
-    )
-
-    combined = calls_per_day.merge(overig_trend,on="datum",how="left").fillna(0)
-
-    st.plotly_chart(
-        px.line(combined,x="datum",y=["calls","overig_calls"]),
-        use_container_width=True
-    )
-
-    # ------------------------------------------------
-    # EINDE DASHBOARD
-    # ------------------------------------------------
+    if len(best_pct) > 2:
+        col3.markdown(f"""
+        <div class="podium-card">
+        <h1>🥉</h1>
+        <b>{best_pct.iloc[2]['Gemaakt door']}</b><br>
+        Overig %: {best_pct.iloc[2]['overig_percentage']}%<br>
+        Calls: {best_pct.iloc[2]['overig_calls']}
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
 
     st.markdown(
         """
         <div style="text-align:center">
-
         <h2>🎆 Einde dashboard bereikt 🎆</h2>
-
-        Scroll omhoog om analyses opnieuw te bekijken.
-
         </div>
         """,
         unsafe_allow_html=True
