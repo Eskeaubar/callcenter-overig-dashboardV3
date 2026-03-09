@@ -1,3 +1,4 @@
+import re
 # ========================
 # AI CATEGORISATIE VOOR OVERIG
 # ========================
