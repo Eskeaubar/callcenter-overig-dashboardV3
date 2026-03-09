@@ -32,7 +32,10 @@ if uploaded_file:
     # Overig detectie
     df["Overig_flag"] = df["Onderwerp"].str.lower().str.contains("overig")
 
+    # =========================
     # PERIODE FILTER
+    # =========================
+
     min_date = df["datum"].min()
     max_date = df["datum"].max()
 
@@ -43,7 +46,10 @@ if uploaded_file:
 
     df = df[(df["datum"] >= start) & (df["datum"] <= end)]
 
-    # KPI
+    # =========================
+    # KPI OVERZICHT
+    # =========================
+
     total_calls = len(df)
     overig_calls = df["Overig_flag"].sum()
 
@@ -54,54 +60,50 @@ if uploaded_file:
     col1,col2,col3 = st.columns(3)
 
     col1.metric("Totaal calls", total_calls)
+
     col2.metric("Overig calls", overig_calls)
 
     overig_pct = round(overig_calls/total_calls*100,2) if total_calls > 0 else 0
 
     col3.metric("Overig %", overig_pct)
 
-    # ======================
+    # =========================
     # MEDEWERKER ANALYSE
-    # ======================
+    # =========================
 
     st.header("👨‍💼 Overig per medewerker")
 
     agent_stats = df.groupby("Gemaakt door").agg(
-
         totaal_calls=("Onderwerp","count"),
         overig_calls=("Overig_flag","sum")
-
     ).reset_index()
 
     agent_stats["overig_percentage"] = (
-
         agent_stats["overig_calls"] /
-
         agent_stats["totaal_calls"] * 100
-
     ).round(2)
+
+    st.subheader("Ranking op % Overig")
 
     ranking_pct = agent_stats.sort_values(
         "overig_percentage",
         ascending=False
     )
 
-    st.subheader("Ranking op % Overig")
-
     st.dataframe(ranking_pct,use_container_width=True)
+
+    st.subheader("Ranking op aantal Overig")
 
     ranking_count = agent_stats.sort_values(
         "overig_calls",
         ascending=False
     )
 
-    st.subheader("Ranking op aantal Overig")
-
     st.dataframe(ranking_count,use_container_width=True)
 
-    # ======================
+    # =========================
     # VISUALISATIES
-    # ======================
+    # =========================
 
     st.header("📈 Visualisaties")
 
@@ -123,9 +125,9 @@ if uploaded_file:
 
     st.plotly_chart(fig2,use_container_width=True)
 
-    # ======================
+    # =========================
     # AI CATEGORISATIE
-    # ======================
+    # =========================
 
     st.header("🤖 Voorgestelde categorie voor Overig calls")
 
@@ -134,10 +136,15 @@ if uploaded_file:
     rules = {
 
         "Inloggen":"login|inlog|wachtwoord|2fa|auth",
+
         "Factuur":"factuur|betaling|invoice|prijs|tarief",
+
         "Account":"account|profiel|gegevens|email",
+
         "Website":"website|portal|pagina|link|formulier",
+
         "Advertentie":"advert|advertentie|campagne",
+
         "Export":"export|document|douane"
 
     }
@@ -169,9 +176,9 @@ if uploaded_file:
 
     st.plotly_chart(fig3,use_container_width=True)
 
-    # ======================
+    # =========================
     # CALL DRIVER DISCOVERY
-    # ======================
+    # =========================
 
     st.header("🔎 Call Driver Discovery")
 
@@ -183,6 +190,10 @@ if uploaded_file:
 
     words = [w for w in words if w not in stopwords]
 
+    subject_text = " ".join(overig_df["Onderwerp"].dropna()).lower()
+
+    words = [w for w in words if w in subject_text]
+
     word_freq = Counter(words).most_common(15)
 
     word_df = pd.DataFrame(word_freq,columns=["woord","frequentie"])
@@ -191,14 +202,14 @@ if uploaded_file:
         word_df,
         x="woord",
         y="frequentie",
-        title="Meest voorkomende woorden in Overig calls"
+        title="Meest voorkomende driver woorden (alleen woorden die ook in onderwerp voorkomen)"
     )
 
     st.plotly_chart(fig_words,use_container_width=True)
 
-    # ======================
+    # =========================
     # DRIVER TRENDS
-    # ======================
+    # =========================
 
     st.header("📈 Driver Trends")
 
@@ -212,3 +223,19 @@ if uploaded_file:
     )
 
     st.plotly_chart(fig_trend,use_container_width=True)
+
+    # =========================
+    # TOP OVERIG ONDERWERPEN PER MEDEWERKER
+    # =========================
+
+    st.header("👥 Top Overig onderwerpen per medewerker")
+
+    top_agent_topics = (
+        overig_df
+        .groupby(["Gemaakt door","Onderwerp"])
+        .size()
+        .reset_index(name="aantal")
+        .sort_values(["Gemaakt door","aantal"],ascending=[True,False])
+    )
+
+    st.dataframe(top_agent_topics,use_container_width=True)
