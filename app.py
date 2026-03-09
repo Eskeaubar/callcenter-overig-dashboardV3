@@ -42,9 +42,7 @@ if uploaded_file:
     st.sidebar.header("Periode filter")
 
     filter_optie = st.sidebar.selectbox(
-
         "Selecteer periode",
-
         [
             "Alles",
             "Gisteren",
@@ -52,7 +50,6 @@ if uploaded_file:
             "Afgelopen maand",
             "Aangepaste periode"
         ]
-
     )
 
     if filter_optie == "Gisteren":
@@ -164,14 +161,12 @@ if uploaded_file:
     overig_df = df[df["Overig_flag"]].copy()
 
     rules = {
-
         "Inloggen":"login|inlog|wachtwoord|2fa|auth",
         "Factuur":"factuur|betaling|invoice|prijs|tarief",
         "Account":"account|profiel|gegevens|email",
         "Website":"website|portal|pagina|link|formulier",
         "Advertentie":"advert|advertentie|campagne",
         "Export":"export|document|douane"
-
     }
 
     def suggest_category(text):
@@ -210,12 +205,18 @@ if uploaded_file:
 
         new_overig = total_overig - hercat
 
-        new_pct = round(new_overig/total_calls*100,2)
+        original_pct = round(total_overig / total_calls * 100,2)
+
+        new_pct = round(new_overig / total_calls * 100,2)
+
+        call_reduction = total_overig - new_overig
+
+        pct_reduction = round(original_pct - new_pct,2)
 
         st.success(
-
-            f"Als deze categorieën worden toegevoegd kan Overig dalen van {total_overig} naar {new_overig} calls ({new_pct}%)."
-
+            f"Als deze categorieën worden toegevoegd kan Overig dalen van "
+            f"{total_overig} ({original_pct}%) naar {new_overig} ({new_pct}%). "
+            f"Dat is een verlaging van {call_reduction} calls en {pct_reduction} procentpunt."
         )
 
     # =========================
@@ -245,12 +246,45 @@ if uploaded_file:
     st.plotly_chart(fig_words,use_container_width=True)
 
     # =========================
+    # DRIVER CLUSTERING
+    # =========================
+
+    st.header("🧠 Driver Clustering")
+
+    cluster_rules = {
+        "Login probleem":"login|inlog|wachtwoord|2fa",
+        "Factuur vraag":"factuur|betaling|tarief|prijs",
+        "Account beheer":"account|profiel|gegevens",
+        "Website probleem":"website|pagina|formulier|portal",
+        "Advertentie probleem":"advert|campagne|plaatsing"
+    }
+
+    def cluster_driver(text):
+
+        for cluster,pattern in cluster_rules.items():
+
+            if re.search(pattern,text):
+
+                return cluster
+
+        return "Overig driver"
+
+    overig_df["Driver cluster"] = overig_df["Beschrijving"].apply(cluster_driver)
+
+    cluster_summary = overig_df["Driver cluster"].value_counts().reset_index()
+
+    cluster_summary.columns = ["cluster","aantal"]
+
+    fig_cluster = px.bar(cluster_summary,x="cluster",y="aantal",title="Driver clusters binnen Overig")
+
+    st.plotly_chart(fig_cluster,use_container_width=True)
+
+    # =========================
     # DRIVER TRENDS
     # =========================
 
     st.header("📈 Driver Trends")
 
-    # totaal calls per dag
     calls_per_day = df.groupby("datum").size().reset_index(name="calls")
 
     fig_calls = px.line(
@@ -262,7 +296,6 @@ if uploaded_file:
 
     st.plotly_chart(fig_calls,use_container_width=True)
 
-    # overig calls per dag
     overig_trend = overig_df.groupby("datum").size().reset_index(name="overig_calls")
 
     fig_overig = px.line(
@@ -274,19 +307,13 @@ if uploaded_file:
 
     st.plotly_chart(fig_overig,use_container_width=True)
 
-    # gecombineerde trend
     combined = calls_per_day.merge(overig_trend,on="datum",how="left").fillna(0)
 
     fig_combined = px.line(
-
         combined,
-
         x="datum",
-
         y=["calls","overig_calls"],
-
         title="Totaal calls vs Overig calls"
-
     )
 
     st.plotly_chart(fig_combined,use_container_width=True)
