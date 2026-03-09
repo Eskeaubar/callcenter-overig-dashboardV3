@@ -8,9 +8,9 @@ import re
 # PAGINA CONFIG
 # ---------------------------------------------------
 
-st.set_page_config(page_title="Callcenter Overig Intelligence", layout="wide")
+st.set_page_config(page_title="KCC Overige Categorie", layout="wide")
 
-st.title("📞 Callcenter Overig Intelligence Dashboard")
+st.title("📞 KCC Overige Categorie")
 
 # ---------------------------------------------------
 # FILE UPLOAD
