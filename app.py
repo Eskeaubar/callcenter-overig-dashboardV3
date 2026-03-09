@@ -30,14 +30,18 @@ if uploaded_file:
 
     df["datum"] = df["Gemaakt op"].dt.date
 
+    # dataset periode
+    dataset_start = df["datum"].min()
+    dataset_end = df["datum"].max()
+
     df["Overig_flag"] = df["Onderwerp"].str.lower().str.contains("overig")
 
     # =========================
     # PERIODE FILTER
     # =========================
 
-    min_date = df["datum"].min()
-    max_date = df["datum"].max()
+    min_date = dataset_start
+    max_date = dataset_end
 
     st.sidebar.header("Periode filter")
 
@@ -88,7 +92,13 @@ if uploaded_file:
 
     st.header("📊 KPI Overzicht")
 
-    st.info(f"Analyseperiode: {start} t/m {end}")
+    st.info(
+        f"Analyseperiode dataset: {dataset_start.strftime('%d-%m-%Y')} t/m {dataset_end.strftime('%d-%m-%Y')}"
+    )
+
+    st.info(
+        f"Gekozen periode filter: {start.strftime('%d-%m-%Y')} t/m {end.strftime('%d-%m-%Y')}"
+    )
 
     col1,col2,col3 = st.columns(3)
 
@@ -244,40 +254,6 @@ if uploaded_file:
     fig_words = px.bar(word_df,x="woord",y="frequentie",title="Driver woorden")
 
     st.plotly_chart(fig_words,use_container_width=True)
-
-    # =========================
-    # DRIVER CLUSTERING
-    # =========================
-
-    st.header("🧠 Driver Clustering")
-
-    cluster_rules = {
-        "Login probleem":"login|inlog|wachtwoord|2fa",
-        "Factuur vraag":"factuur|betaling|tarief|prijs",
-        "Account beheer":"account|profiel|gegevens",
-        "Website probleem":"website|pagina|formulier|portal",
-        "Advertentie probleem":"advert|campagne|plaatsing"
-    }
-
-    def cluster_driver(text):
-
-        for cluster,pattern in cluster_rules.items():
-
-            if re.search(pattern,text):
-
-                return cluster
-
-        return "Overig driver"
-
-    overig_df["Driver cluster"] = overig_df["Beschrijving"].apply(cluster_driver)
-
-    cluster_summary = overig_df["Driver cluster"].value_counts().reset_index()
-
-    cluster_summary.columns = ["cluster","aantal"]
-
-    fig_cluster = px.bar(cluster_summary,x="cluster",y="aantal",title="Driver clusters binnen Overig")
-
-    st.plotly_chart(fig_cluster,use_container_width=True)
 
     # =========================
     # DRIVER TRENDS
