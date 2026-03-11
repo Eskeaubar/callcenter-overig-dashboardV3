@@ -4,10 +4,7 @@ import plotly.express as px
 from datetime import timedelta, date
 import re
 
-st.set_page_config(
-    page_title="KCC Categorie Overige",
-    layout="wide"
-)
+st.set_page_config(page_title="KCC Categorie Overige", layout="wide")
 
 st.title("📞 KCC Categorie Overige Dashboard")
 
@@ -54,7 +51,6 @@ if uploaded_file:
     # Werkdagen filter
 
     df["weekday"] = pd.to_datetime(df["datum"]).dt.weekday
-
     df = df[df["weekday"] < 5]
 
     dataset_start = df["datum"].min()
@@ -98,17 +94,14 @@ if uploaded_file:
     elif filter_optie == "Afgelopen kalender maand":
 
         first_day_current_month = date(max_date.year, max_date.month, 1)
-
         last_day_previous_month = first_day_current_month - timedelta(days=1)
 
         start = date(last_day_previous_month.year,last_day_previous_month.month,1)
-
         end = last_day_previous_month
 
     elif filter_optie == "Aangepaste periode":
 
         start = st.sidebar.date_input("Startdatum",min_date)
-
         end = st.sidebar.date_input("Einddatum",max_date)
 
     else:
@@ -132,7 +125,6 @@ if uploaded_file:
     # ------------------------------------------------
 
     total_calls = len(df)
-
     overig_calls = df["Overig_flag"].sum()
 
     st.header("📊 KPI Overzicht")
@@ -140,7 +132,6 @@ if uploaded_file:
     col1,col2,col3 = st.columns(3)
 
     col1.metric("Totaal calls",total_calls)
-
     col2.metric("Overig calls",overig_calls)
 
     overig_pct = round(overig_calls/total_calls*100,2) if total_calls>0 else 0
@@ -154,28 +145,20 @@ if uploaded_file:
     st.header("👨‍💼 Overig per medewerker")
 
     agent_stats = df.groupby("Gemaakt door").agg(
-
         totaal_calls=("Onderwerp","count"),
-
         overig_calls=("Overig_flag","sum")
-
     ).reset_index()
 
     agent_stats["overig_percentage"] = (
-
         agent_stats["overig_calls"] /
-
         agent_stats["totaal_calls"] * 100
-
     ).round(2)
 
     st.subheader("Ranking op % Overig")
-
-    st.dataframe(agent_stats.sort_values("overig_percentage",ascending=False),use_container_width=True)
+    st.dataframe(agent_stats.sort_values("overig_percentage",ascending=False))
 
     st.subheader("Ranking op aantal Overig")
-
-    st.dataframe(agent_stats.sort_values("overig_calls",ascending=False),use_container_width=True)
+    st.dataframe(agent_stats.sort_values("overig_calls",ascending=False))
 
     # ------------------------------------------------
     # PODIUM
@@ -196,11 +179,8 @@ if uploaded_file:
     else:
 
         if periode_dagen >= 30:
-
             min_calls = 100
-
         else:
-
             min_calls = 50
 
         podium_data = agent_stats[agent_stats["totaal_calls"] >= min_calls]
@@ -210,45 +190,56 @@ if uploaded_file:
         col1,col2,col3 = st.columns(3)
 
         if len(podium_data) > 1:
-
             col1.success(f"🥈 {podium_data.iloc[1]['Gemaakt door']}")
 
         if len(podium_data) > 0:
-
             col2.success(f"🥇 {podium_data.iloc[0]['Gemaakt door']}")
 
         if len(podium_data) > 2:
-
             col3.success(f"🥉 {podium_data.iloc[2]['Gemaakt door']}")
 
     # ------------------------------------------------
-    # CATEGORIE PER MEDEWERKER
+    # CATEGORIEGEBRUIK PER MEDEWERKER
     # ------------------------------------------------
 
     st.header("📊 Categoriegebruik per medewerker")
 
     cat_agent = df.groupby(["Gemaakt door","Onderwerp"]).size().reset_index(name="Aantal")
 
-    st.dataframe(cat_agent,use_container_width=True)
+    st.dataframe(cat_agent)
 
     fig_agent = px.bar(
-
         cat_agent,
-
         x="Gemaakt door",
-
         y="Aantal",
-
         color="Onderwerp",
-
         title="Onderwerpen per medewerker"
-
     )
 
     st.plotly_chart(fig_agent,use_container_width=True)
 
     # ------------------------------------------------
-    # OVERIG ANALYSE
+    # TOP CALL DRIVERS
+    # ------------------------------------------------
+
+    st.header("📞 Top Call Drivers")
+
+    driver_summary = df["Onderwerp"].value_counts().reset_index()
+    driver_summary.columns=["Onderwerp","Aantal"]
+
+    st.dataframe(driver_summary.head(10))
+
+    fig_driver = px.bar(
+        driver_summary.head(10),
+        x="Onderwerp",
+        y="Aantal",
+        title="Top 10 Call Drivers"
+    )
+
+    st.plotly_chart(fig_driver,use_container_width=True)
+
+    # ------------------------------------------------
+    # VOORGESTELDE CATEGORIEEN
     # ------------------------------------------------
 
     st.header("🤖 Voorgestelde categorie voor Overig")
@@ -256,27 +247,18 @@ if uploaded_file:
     overig_df = df[df["Overig_flag"]].copy()
 
     rules = {
-
         "Inloggen":"login|inlog|wachtwoord|2fa",
-
         "Factuur":"factuur|betaling|invoice|tarief",
-
         "Account":"account|profiel|gegevens",
-
         "Website":"website|portal|pagina",
-
         "Advertentie":"advert|campagne",
-
         "Export":"export|douane|document"
-
     }
 
     def suggest_category(text):
 
         for cat,pattern in rules.items():
-
             if re.search(pattern,text):
-
                 return cat
 
         return "Onbekend"
@@ -284,13 +266,11 @@ if uploaded_file:
     overig_df["Voorgestelde categorie"] = overig_df["Beschrijving"].apply(suggest_category)
 
     summary = overig_df["Voorgestelde categorie"].value_counts().reset_index()
-
     summary.columns=["Categorie","Aantal"]
 
-    st.dataframe(summary,use_container_width=True)
+    st.dataframe(summary)
 
     fig_cat = px.bar(summary,x="Categorie",y="Aantal",title="Voorgestelde categorieën")
-
     st.plotly_chart(fig_cat,use_container_width=True)
 
     # ------------------------------------------------
@@ -300,7 +280,6 @@ if uploaded_file:
     st.header("🧮 Overig Reduction Simulator")
 
     hercat = len(overig_df[overig_df["Voorgestelde categorie"]!="Onbekend"])
-
     total_overig = len(overig_df)
 
     if total_overig > 0:
@@ -308,16 +287,14 @@ if uploaded_file:
         new_overig = total_overig - hercat
 
         original_pct = round(total_overig/total_calls*100,2)
-
         new_pct = round(new_overig/total_calls*100,2)
 
         call_reduction = total_overig - new_overig
-
         pct_reduction = round(original_pct-new_pct,2)
 
         st.success(
-
-f"""Als deze categorieën worden toegevoegd kan Overig dalen van  
+f"""
+Als deze categorieën worden toegevoegd kan Overig dalen van  
 
 {total_overig} ({original_pct}%) naar {new_overig} ({new_pct}%).
 
@@ -326,23 +303,15 @@ Dat is een verlaging van {call_reduction} calls en {pct_reduction} procentpunt.
         )
 
         impact_df = pd.DataFrame({
-
             "Scenario":["Huidig","Na hercategorisatie"],
-
             "Overig calls":[total_overig,new_overig]
-
         })
 
         fig_reduction = px.bar(
-
             impact_df,
-
             x="Scenario",
-
             y="Overig calls",
-
             title="Impact van betere categorisatie"
-
         )
 
         st.plotly_chart(fig_reduction,use_container_width=True)
@@ -354,7 +323,6 @@ Dat is een verlaging van {call_reduction} calls en {pct_reduction} procentpunt.
     st.header("📈 Driver Trends")
 
     calls_per_day = df.groupby("datum").size().reset_index(name="calls")
-
     overig_trend = overig_df.groupby("datum").size().reset_index(name="overig_calls")
 
     factor = (total_overig-hercat)/total_overig if total_overig>0 else 1
@@ -362,15 +330,10 @@ Dat is een verlaging van {call_reduction} calls en {pct_reduction} procentpunt.
     overig_trend["overig_na_hercategorisatie"] = overig_trend["overig_calls"] * factor
 
     fig_overig = px.line(
-
         overig_trend,
-
         x="datum",
-
         y=["overig_calls","overig_na_hercategorisatie"],
-
         title="Trend Overig calls (huidig vs na hercategorisatie)"
-
     )
 
     st.plotly_chart(fig_overig,use_container_width=True)
@@ -378,15 +341,10 @@ Dat is een verlaging van {call_reduction} calls en {pct_reduction} procentpunt.
     combined = calls_per_day.merge(overig_trend,on="datum",how="left").fillna(0)
 
     fig_combined = px.line(
-
         combined,
-
         x="datum",
-
         y=["calls","overig_calls"],
-
         title="Totaal calls vs Overig calls"
-
     )
 
     st.plotly_chart(fig_combined,use_container_width=True)
